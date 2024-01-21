@@ -1,81 +1,265 @@
-V1.1版本修改
-1.调整[safe_z_home]速度为200
-2.调整[printer]，max_accel限制为5000，开启max_z_velocity:5,max_z_accel: 100
-3.调整[extruder]，pressure_advance禁用
-4.调整[extruder]，ender3S1 PRO的喷嘴max_temp是305，ender3S1/ender3V2max_temp是265
-5.调整[bed_mesh]，ender3V2的speed限制为120，ender3S1 PRO/ender3S1speed限制为150
-6.增加延时摄影配置[include /mnt/UDISK/printer_config/timelapse.cfg]
+# !Ender-6
+# printer_size: 250*250*400
+# version: 3.6
+# This file contains pin mappings for the stock 2020 Creality Ender 6.
+# To use this config, during "make menuconfig" select the STM32F103
+# with a "28KiB bootloader" and serial (on USART1 PA10/PA9)
+# communication.
 
-V1.2版本修改
-1.去除冗余配置代码
-2.修改[virtual_sdcard]值为path: ~/gcode_files
-3.修改Ender 3V2 [extruder] [heater_bed]值min_temp为0
-4.新增klipper下位机固件编译和安装说明
+# Because this printer has factory wiring, mounts, and firmware for
+# a BLTouch, but does not ship with one at this time, default values
+# for the sensor have been specified, but disabled, in anticipation of
+# future revisions or user modification. User should take care to
+# customize the offsets, particularly z-offset, for their specific unit.
 
-V1.3版本修改
-1.紧急修复[display]字段导致CR6SE喷嘴发热问题。此字段适用于点阵屏，音速屏无用，删除该字段
-2.修复Ender3 V2-CRtouch [stepper_z]，enable_pin: !PC3，未启用导致Z轴不抬升的问题
-3.修改机型名称Ender 3V2-CRtouch为Ender 3V2 ABL
+# If you prefer a direct serial connection, in "make menuconfig"
+# select "Enable extra low-level configuration options" and select
+# serial (on USART3 PB11/PB10), which is broken out on the 10 pin IDC
 
-V1.4版本修改
-1.修改Ender3-S1 [safe_z_home] home_xy_position:155,155
-2.修改[stepper_x] homing_speed: 80
-3.修改[stepper_y] homing_speed: 80
-4.修改Ender-3S1/S1 Pro [stepper_y] position_max: 230
-5.新增机型成型尺寸注释 # printer_size: 220x220x270
-6.新增[adxl345] spi_speed: 2000000
+# Flash this firmware by copying "out/klipper.bin" to a SD card and
+# turning on the printer with the card inserted. The firmware
+# filename must end in ".bin" and must not match the last filename
+# that was flashed.
 
-V1.5版本修改
-1.修复自动调平时，报错超范围
+# See docs/Config_Reference.md for a description of parameters.
 
-V1.6版本修改
-1.去掉Ender3-V2系列断料检测配置
-2.新增Ender3-V2-V4.2.7主板配置文件
-3.新增Ender3V2-CRtouch-V4.2.7主板配置文件
-4.配置文件名修改统一风格
+###fluidd set
+[virtual_sdcard]
+path: ~/gcode_files
 
-V1.7版本修改
-1.适配自适应调平，增加双插值算法
-2.机型命名修改规范
 
-V1.8版本修改
-1.增加[verify_heater extruder] 
-      check_gain_time: 200 
-      hysteresis: 5
-2.修改默认[extruder]和[heater_bed]PID值
 
-V1.9版本修改
-1.修改Ender3-S1/S1Pro中[safe_z_home] home_xy_position: 145,155
-2.修改Ender3-S1/S1Pro中[bltouch] x_offset: -30.0
+[display_status]
 
-V2.0版本修改
-1.修改Ender3-S1/S1 Pro中 [printer] max_z_velocity: 10   max_z_accel: 1000
-2.增加Ender3-S1/S1 Pro/V2 [printer] square_corner_velocity: 5.0
+[pause_resume]
 
-V2.1版本修改
-1.修改Ender3-S1/S1 Pro 中[stepper_z] position_max: 275
-2.修改Ender3-V2 中[stepper_z] position_max: 255
+[gcode_macro PAUSE]
+description: Pause the actual running print
+rename_existing: PAUSE_BASE
+# change this if you need more or less extrusion
+variable_extrude: 1.0
+gcode:
+  ##### read E from pause macro #####
+  {% set E = printer["gcode_macro PAUSE"].extrude|float %}
+  ##### set park positon for x and y #####
+  # default is your max posion from your printer.cfg
+  {% set x_park = printer.toolhead.axis_maximum.x|float - 5.0 %}
+  {% set y_park = printer.toolhead.axis_maximum.y|float - 5.0 %}
+  ##### calculate save lift position #####
+  {% set max_z = printer.toolhead.axis_maximum.z|float %}
+  {% set act_z = printer.toolhead.position.z|float %}
+  {% if act_z < (max_z - 2.0) %}
+      {% set z_safe = 2.0 %}
+  {% else %}
+      {% set z_safe = max_z - act_z %}
+  {% endif %}
+  ##### end of definitions #####
+  PAUSE_BASE
+  G91
+  {% if printer.extruder.can_extrude|lower == 'true' %}
+    G1 E-{E} F2100
+  {% else %}
+    {action_respond_info("Extruder not hot enough")}
+  {% endif %}
+  {% if "xyz" in printer.toolhead.homed_axes %}
+    G1 Z{z_safe} F900
+    G90
+    G1 X{x_park} Y{y_park} F6000
+  {% else %}
+    {action_respond_info("Printer not homed")}
+  {% endif %}
 
-V2.2版本修改
-1.修改[gcode_macro CANCEL_PRINT]宏定义
-2.修改Ender3-V2-CRtouch 中[stepper_x] position_max: 240
-3.更新固件添加异常加热底层逻辑
+[gcode_macro RESUME]
+description: Resume the actual running print
+rename_existing: RESUME_BASE
+gcode:
+  ##### read E from pause macro #####
+  {% set E = printer["gcode_macro PAUSE"].extrude|float %}
+  #### get VELOCITY parameter if specified ####
+  {% if 'VELOCITY' in params|upper %}
+    {% set get_params = ('VELOCITY=' + params.VELOCITY)  %}
+  {%else %}
+    {% set get_params = "" %}
+  {% endif %}
+  ##### end of definitions #####
+  {% if printer.extruder.can_extrude|lower == 'true' %}
+    G91
+    G1 E{E} F2100
+  {% else %}
+    {action_respond_info("Extruder not hot enough")}
+  {% endif %}
+  RESUME_BASE {get_params}
 
-V2.3版本修改
-1.修改Ender3-S1/S1 Pro [stepper_x] position_min: -6 position_endstop: -6 
-2.删除Ender3-V2 宏命令[delayed_gcode AUTOSTART]
+[gcode_macro CANCEL_PRINT]
+description: Cancel the actual running print
+rename_existing: CANCEL_PRINT_BASE
+gcode:
+  TURN_OFF_HEATERS
+  {% if "xyz" in printer.toolhead.homed_axes %}
+    G91
+    G1 Z4.5 F300
+    G90
+  {% else %}
+    {action_respond_info("Printer not homed")}
+  {% endif %}
+    G28 X Y
+  {% set y_park = printer.toolhead.axis_maximum.y|float - 5.0 %}
+    G1 Y{y_park} F2000
+    M84
+  CANCEL_PRINT_BASE
 
-V2.4版本修改
-1.修改Ender3-S1/S1 Pro [stepper_x] position_min: -3 position_endstop: -3 
+[stepper_x]
+step_pin: PB8
+dir_pin: PB7
+enable_pin: !PC3
+microsteps: 16
+rotation_distance: 40
+endstop_pin: ^PA5
+position_endstop: 260
+position_max: 260
+homing_speed: 50
 
-V2.5版本修改
-1.修改Ender3-S1/S1 Pro [stepper_x] position_min: -5 position_endstop: -5 
-2.修改Ender3-S1/S1 Pro 打印成型范围
+[stepper_y]
+step_pin: PC2
+dir_pin: !PB9
+enable_pin: !PC3
+microsteps: 16
+rotation_distance: 40
+endstop_pin: ^PA6
+position_endstop: 260
+position_max: 260
+homing_speed: 50
 
-V2.6版本修改
-1.新增机型Ender3-V2 Neo
-2.新增机型Ender3-s1pro-103
-2.新增宏定义[gcode_macro G29]
+[stepper_z]
+step_pin: PB6
+dir_pin: PB5
+enable_pin: !PC3
+microsteps: 16
+rotation_distance: 8
+# position_endstop: 0.0                     # disable to use BLTouch
+# endstop_pin: ^PA7                         # disable to use BLTouch
+endstop_pin: probe:z_virtual_endstop    # enable to use BLTouch
+position_min: -5                        # enable to use BLTouch
+position_max: 400
 
-V2.7版本修改
-1.修改Ender3-V2-CRtouch-V4.2.7 [stepper_z] 修改touch配置
+[extruder]
+max_extrude_only_distance: 1000.0
+step_pin: PB4
+dir_pin: !PB3
+enable_pin: !PC3
+microsteps: 16
+rotation_distance: 22.857
+nozzle_diameter: 0.400
+filament_diameter: 1.750
+heater_pin: PA1
+sensor_type: EPCOS 100K B57560G104F
+sensor_pin: PC5
+control: pid
+pid_Kp: 26.949
+pid_Ki: 1.497
+pid_Kd: 121.269
+min_temp: 0
+max_temp: 265
+
+[idle_timeout]
+timeout: 172800
+
+[safe_z_home]                           # enable for BLTouch
+home_xy_position: 150.7, 137
+speed: 100
+z_hop: 10
+z_hop_speed: 5
+
+[bltouch]                               # enable for BLTouch
+sensor_pin: ^PB1
+control_pin: PB0
+x_offset: -20.7
+y_offset: -7
+z_offset: 2.4
+speed:10
+samples:1
+samples_result:average
+probe_with_touch_mode: true
+stow_on_each_sample: false
+
+[bed_mesh]                              # enable for BLTouch
+speed: 100
+mesh_min: 10, 10
+mesh_max: 239, 239
+algorithm: bicubic
+probe_count: 5, 5
+
+[bed_screws]
+screw1: 25, 33
+screw2: 222, 33
+screw3: 222, 222
+screw4: 25, 222
+
+[verify_heater extruder]
+check_gain_time: 200
+hysteresis: 5
+
+[heater_bed]
+heater_pin: PA2
+sensor_type: EPCOS 100K B57560G104F
+sensor_pin: PC4
+control: pid
+pid_Kp: 327.11
+pid_Ki: 19.20
+pid_Kd: 1393.45
+min_temp: 0
+max_temp: 130
+
+[fan]
+pin: PA0
+
+[fan_generic extruder_partfan]
+pin: PC6
+
+[filament_switch_sensor filament_sensor]
+pause_on_runout: true
+switch_pin: PA4
+
+[mcu]
+serial: /dev/serial/by-id/usb_serial_1
+restart_method: command
+
+# [mcu rpi]
+# serial: /tmp/klipper_host_mcu
+
+# [adxl345]
+# cs_pin: rpi:None
+# spi_speed: 2000000
+# spi_bus: spidev2.0
+# [resonance_tester]
+# accel_chip: adxl345
+# accel_per_hz: 70
+# probe_points:
+#     130,130,10
+
+[printer]
+kinematics: corexy
+max_velocity: 500
+max_accel: 5000
+max_z_velocity: 10
+max_z_accel: 1000
+square_corner_velocity: 5.0
+
+[input_shaper]
+shaper_type_x = ei
+shaper_freq_x = 110.4
+shaper_type_y = mzv
+shaper_freq_y = 87.0
+
+[include timelapse.cfg]
+
+[exclude_object]
+
+[gcode_arcs]
+#resolution: 1.0
+
+[gcode_macro G29]
+gcode:
+  G28
+  bed_mesh_calibrate
+  G1 X0 Y0 Z10 F4200
