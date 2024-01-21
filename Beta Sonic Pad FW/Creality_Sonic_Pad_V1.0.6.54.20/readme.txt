@@ -1,0 +1,2 @@
+Config和Bin文件都要拷贝到U盘根目录，插入到音速屏会自动弹窗提示升级。
+Both Config and Bin files must be copied to the root directory of the USB flash drive. Insert the USB flash drive into the Creality Sonic Pad, and it will automatically pop up a window to prompt the upgrade.
